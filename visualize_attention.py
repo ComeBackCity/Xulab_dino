@@ -105,7 +105,7 @@ if __name__ == '__main__':
     parser.add_argument("--checkpoint_key", default="teacher", type=str,
         help='Key to use in the checkpoint (example: "teacher")')
     parser.add_argument("--image_path", default=None, type=str, help="Path of the image to load.")
-    parser.add_argument("--image_size", default=(480, 480), type=int, nargs="+", help="Resize image.")
+    parser.add_argument("--image_size", default=(224, 224), type=int, nargs="+", help="Resize image.")
     parser.add_argument('--output_dir', default='.', help='Path where to save visualizations.')
     parser.add_argument("--threshold", type=float, default=None, help="""We visualize masks
         obtained by thresholding the self-attention maps to keep xx% of the mass.""")
@@ -114,6 +114,14 @@ if __name__ == '__main__':
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     # build model
     model = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0)
+    embed_dim = model.embed_dim
+    model.patch_embed.proj = torch.nn.Conv2d(
+        in_channels=1,
+        out_channels=embed_dim,
+        kernel_size=(args.patch_size, args.patch_size),
+        stride=(args.patch_size, args.patch_size)
+    )
+
     for p in model.parameters():
         p.requires_grad = False
     model.eval()
@@ -158,14 +166,19 @@ if __name__ == '__main__':
     elif os.path.isfile(args.image_path):
         with open(args.image_path, 'rb') as f:
             img = Image.open(f)
-            img = img.convert('RGB')
+            img = img.convert('L')
     else:
         print(f"Provided image path {args.image_path} is non valid.")
         sys.exit(1)
+    # transform = pth_transforms.Compose([
+    #     pth_transforms.Resize(args.image_size),
+    #     pth_transforms.ToTensor(),
+    #     pth_transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    # ])
     transform = pth_transforms.Compose([
         pth_transforms.Resize(args.image_size),
         pth_transforms.ToTensor(),
-        pth_transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        pth_transforms.Normalize((0.485), (0.229)),
     ])
     img = transform(img)
 
@@ -200,14 +213,15 @@ if __name__ == '__main__':
     attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
 
     # save attentions heatmaps
-    os.makedirs(args.output_dir, exist_ok=True)
-    torchvision.utils.save_image(torchvision.utils.make_grid(img, normalize=True, scale_each=True), os.path.join(args.output_dir, "img.png"))
+    dir = f"{args.output_dir}/t_{args.threshold}"
+    os.makedirs(dir, exist_ok=True)
+    torchvision.utils.save_image(torchvision.utils.make_grid(img, normalize=True, scale_each=True), os.path.join(dir, "img.png"))
     for j in range(nh):
-        fname = os.path.join(args.output_dir, "attn-head" + str(j) + ".png")
+        fname = os.path.join(dir, "attn-head" + str(j) + ".png")
         plt.imsave(fname=fname, arr=attentions[j], format='png')
         print(f"{fname} saved.")
 
     if args.threshold is not None:
-        image = skimage.io.imread(os.path.join(args.output_dir, "img.png"))
+        image = skimage.io.imread(os.path.join(dir, "img.png"))
         for j in range(nh):
-            display_instances(image, th_attn[j], fname=os.path.join(args.output_dir, "mask_th" + str(args.threshold) + "_head" + str(j) +".png"), blur=False)
+            display_instances(image, th_attn[j], fname=os.path.join(dir, "mask_th" + str(args.threshold) + "_head" + str(j) +".png"), blur=False)

@@ -273,7 +273,6 @@ class SmoothedValue(object):
     @property
     def value(self):
         return self.deque[-1]
-
     def __str__(self):
         return self.fmt.format(
             median=self.median,
@@ -465,26 +464,37 @@ def setup_for_distributed(is_master):
 
 
 def init_distributed_mode(args):
+    # print(os.environ['MASTER_ADDR'])
+    # print(os.environ['MASTER_PORT'])
+    print(args)
     # launched with torch.distributed.launch
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        print("here1")
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['LOCAL_RANK'])
+        os.environ['MASTER_ADDR'] = '127.0.0.1'
+        os.environ['MASTER_PORT'] = '29400'
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
+        print("here2")
         args.rank = int(os.environ['SLURM_PROCID'])
         args.gpu = args.rank % torch.cuda.device_count()
     # launched naively with `python main_dino.py`
     # we manually add MASTER_ADDR and MASTER_PORT to env variables
     elif torch.cuda.is_available():
+        print("here3")
         print('Will run the code on one GPU.')
         args.rank, args.gpu, args.world_size = 0, 0, 1
         os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
+        os.environ['MASTER_PORT'] = '29800'
     else:
+        print("here4")
         print('Does not support training without GPU.')
         sys.exit(1)
 
+    print(os.environ['MASTER_ADDR'])
+    print(os.environ['MASTER_PORT'])
     dist.init_process_group(
         backend="nccl",
         init_method=args.dist_url,
@@ -687,8 +697,8 @@ class PCA():
         self.dvt = np.dot(d, v.T)
 
     def apply(self, x):
-        # input is from numpy
-        if isinstance(x, np.ndarray):
+        # input is from numpyco
+        if iscoinstance(x, np.ndarray):
             if self.mean is not None:
                 x -= self.mean
             return np.dot(self.dvt, x.T).T

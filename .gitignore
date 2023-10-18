@@ -1,3 +1,14 @@
 __pycache__/
 checkpoint/*.pth
 dataset/*
+*.zip
+output*
+conda
+tiny-imagenet-200
+test_image
+dataset_no_contrast/*
+dataset_old/*
+metric_plots/*
+attn/*
+*.swp
+.idea/*
