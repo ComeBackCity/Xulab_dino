@@ -85,7 +85,7 @@ def get_args_parser():
     parser.add_argument('--weight_decay_end', type=float, default=0.4, help="""Final value of the
         weight decay. We use a cosine schedule for WD and using a larger decay by
         the end of training improves performance for ViTs.""")
-    parser.add_argument('--clip_grad', type=float, default=0.2, help="""Maximal parameter
+    parser.add_argument('--clip_grad', type=float, default=0.5, help="""Maximal parameter
         gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
         help optimization for larger ViT architectures. 0 for disabling.""")
     parser.add_argument('--batch_size_per_gpu', default=8, type=int,
@@ -121,7 +121,7 @@ def get_args_parser():
     parser.add_argument('--data_path', default='/path/to/imagenet/train/', type=str,
         help='Please specify path to the ImageNet training data.')
     parser.add_argument('--output_dir', default=".", type=str, help='Path to save logs and checkpoints.')
-    parser.add_argument('--saveckp_freq', default=5, type=int, help='Save checkpoint every x epochs.')
+    parser.add_argument('--saveckp_freq', default=50, type=int, help='Save checkpoint every x epochs.')
     parser.add_argument('--seed', default=100, type=int, help='Random seed.')
     parser.add_argument('--num_workers', default=10, type=int, help='Number of data loading workers per GPU.')
     parser.add_argument("--dist_url", default="env://", type=str, help="""url used to set up
@@ -146,11 +146,11 @@ def train_dino(args):
     #     args.local_crops_number,
     # )
 
-    # transform = DataAugmentationDINO_grayscale(
-    #     args.global_crops_scale,
-    #     args.local_crops_scale,
-    #     args.local_crops_number,
-    # )
+    #transform = DataAugmentationDINO_grayscale(
+    #    args.global_crops_scale,
+    #    args.local_crops_scale,
+    #    args.local_crops_number,
+    #)
 
     transform = DataAugmentationDINO_reduced(
         args.global_crops_scale,
@@ -225,11 +225,14 @@ def train_dino(args):
         if args.arch == "resnet50":
             student.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
             teacher.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-
+        
+        # print(student)
         embed_dim = student.fc.weight.shape[1]
         print("torchvision model")
     else:
         print(f"Unknow architecture: {args.arch}")
+
+    # exit()
 
     # multi-crop wrapper handles forward with inputs of different resolutions
     student = utils.MultiCropWrapper(student, DINOHead(
@@ -555,6 +558,7 @@ class DataAugmentationDINO_grayscale(object):
         flip_and_color_jitter = transforms.Compose([
             # transforms.Resize((480, 480)),resn
             transforms.RandomHorizontalFlip(p=0.5),
+            # transforms.RandomAdjustSharpness(2, p=0.5),
             # transforms.RandomApply(
             #     [transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.1)],
             #     p=0.3
@@ -563,21 +567,21 @@ class DataAugmentationDINO_grayscale(object):
         ])
         normalize = transforms.Compose([
             transforms.ToTensor(),
-            # transforms.Normalize((0.485), (0.229)),
+            transforms.Normalize((0.5175), (0.2367)),
         ])
 
         # first global crop
         self.global_transfo1 = transforms.Compose([
             transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
-            # utils.GaussianBlur(1.0),
+            utils.GaussianBlur(1.0),
             normalize,
         ])
         # second global crop
         self.global_transfo2 = transforms.Compose([
             transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
-            # utils.GaussianBlur(0.1),
+            utils.GaussianBlur(0.1),
             # utils.Solarization(0.2),
             normalize,
         ])
@@ -586,7 +590,7 @@ class DataAugmentationDINO_grayscale(object):
         self.local_transfo = transforms.Compose([
             transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
-            # utils.GaussianBlur(p=0.5),
+            utils.GaussianBlur(p=0.5),
             normalize,
         ])
 
@@ -615,6 +619,7 @@ class DataAugmentationDINO_reduced(object):
 
         normalize = transforms.Compose([
             transforms.ToTensor(),
+            transforms.Normalize((0.5307), (0.0815)),
         ])
 
         # first global crop

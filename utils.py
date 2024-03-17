@@ -474,7 +474,7 @@ def init_distributed_mode(args):
         args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['LOCAL_RANK'])
         os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29400'
+        os.environ['MASTER_PORT'] = '29800'
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         print("here2")

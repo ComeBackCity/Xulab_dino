@@ -178,7 +178,7 @@ if __name__ == '__main__':
     transform = pth_transforms.Compose([
         pth_transforms.Resize(args.image_size),
         pth_transforms.ToTensor(),
-        pth_transforms.Normalize((0.485), (0.229)),
+        pth_transforms.Normalize((0.554), (0.2875)),
     ])
     img = transform(img)
 

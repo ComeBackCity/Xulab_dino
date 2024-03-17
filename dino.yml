@@ -4,8 +4,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - _libgcc_mutex=0.1
-  - _openmp_mutex=5.1
   - blas=1.0
   - ca-certificates=2023.05.30
   - certifi=2021.5.30

@@ -6,9 +6,14 @@ output*
 conda
 tiny-imagenet-200
 test_image
-dataset_no_contrast/*
-dataset_old/*
+dataset*
 metric_plots/*
 attn/*
 *.swp
 .idea/*
+Mito/
+klh_*/
+attn_*/
+mito_*/
+appoferritin/
+ribo_whole/
