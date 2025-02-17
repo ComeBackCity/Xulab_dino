@@ -109,11 +109,17 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='.', help='Path where to save visualizations.')
     parser.add_argument("--threshold", type=float, default=None, help="""We visualize masks
         obtained by thresholding the self-attention maps to keep xx% of the mass.""")
+    parser.add_argument('--num_registers', type=int, default=0, help="""Number of register tokens""")
+
     args = parser.parse_args()
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     # build model
-    model = vits.__dict__[args.arch](patch_size=args.patch_size, num_classes=0)
+    model = vits.__dict__[args.arch](
+        patch_size=args.patch_size, 
+        num_classes=0, 
+        num_registers=args.num_registers
+    )
     embed_dim = model.embed_dim
     model.patch_embed.proj = torch.nn.Conv2d(
         in_channels=1,
@@ -178,7 +184,7 @@ if __name__ == '__main__':
     transform = pth_transforms.Compose([
         pth_transforms.Resize(args.image_size),
         pth_transforms.ToTensor(),
-        pth_transforms.Normalize((0.554), (0.2875)),
+        pth_transforms.Normalize((0.5124), (0.04)),
     ])
     img = transform(img)
 
@@ -194,7 +200,7 @@ if __name__ == '__main__':
     nh = attentions.shape[1] # number of head
 
     # we keep only the output patch attention
-    attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
+    attentions = attentions[0, :, 0, 1+args.num_registers:].reshape(nh, -1)
 
     if args.threshold is not None:
         # we keep only a certain percentage of the mass

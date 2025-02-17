@@ -31,6 +31,7 @@ import torch
 from torch import nn
 import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
+from torchvision.transforms import ToPILImage, ToTensor
 
 
 class GaussianBlur(object):
@@ -66,6 +67,38 @@ class Solarization(object):
             return ImageOps.solarize(img)
         else:
             return img
+        
+
+# def gauss_noise_tensor(img):
+#     assert isinstance(img, torch.Tensor)
+#     dtype = img.dtype
+#     if not img.is_floating_point():
+#         img = img.to(torch.float32)
+#     sigma = 25.0
+#     out = img + sigma * torch.randn_like(img)
+#     if out.dtype != dtype:
+#         out = out.to(dtype)
+#     return out
+
+class GaussianNoise(object):
+    
+    def __init__(self, p):
+        self.sigma = np.random.randint(0, 30)
+        self.p = p
+        
+    def __call__(self, img):
+        img = ToTensor()(img)
+        dtype = img.dtype
+        if not img.is_floating_point():
+            img = img.to(torch.float32)
+            
+        if random.random() < self.p:
+            out = img + self.sigma * torch.randn_like(img)
+            if out.dtype != dtype:
+                out = out.to(dtype)
+            return ToPILImage()(out)
+        else:
+            return ToPILImage()(img)
 
 
 def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):
@@ -466,15 +499,18 @@ def setup_for_distributed(is_master):
 def init_distributed_mode(args):
     # print(os.environ['MASTER_ADDR'])
     # print(os.environ['MASTER_PORT'])
-    print(args)
+    # print(args)
     # launched with torch.distributed.launch
+    # print(os.environ['WORLD_SIZE'])
+    # print(os.environ['RANK'])
+    # exit()
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
         print("here1")
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['LOCAL_RANK'])
         os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29800'
+        os.environ['MASTER_PORT'] = '29300'
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         print("here2")

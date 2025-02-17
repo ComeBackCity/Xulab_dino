@@ -135,7 +135,7 @@ class VisionTransformer(nn.Module):
     """ Vision Transformer """
     def __init__(self, img_size=[224], patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm, **kwargs):
+                 drop_path_rate=0., norm_layer=nn.LayerNorm, num_registers=0, **kwargs):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim
 
@@ -146,6 +146,13 @@ class VisionTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
+        
+        self.num_registers = num_registers
+        self.register_tokens = None
+        assert num_registers >= 0
+        self.register_tokens = (
+            nn.Parameter(torch.zeros(1, num_registers, embed_dim)) if num_registers else None
+        )
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         self.blocks = nn.ModuleList([
@@ -203,6 +210,16 @@ class VisionTransformer(nn.Module):
 
         # add positional encoding to each token
         x = x + self.interpolate_pos_encoding(x, w, h)
+        
+        if self.register_tokens is not None:
+            x = torch.cat(
+                (
+                    x[:, :1],
+                    self.register_tokens.expand(x.shape[0], -1, -1),
+                    x[:, 1:],
+                ),
+                dim=1,
+            )
 
         return self.pos_drop(x)
 

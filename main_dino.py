@@ -85,6 +85,7 @@ def get_args_parser():
     parser.add_argument('--weight_decay_end', type=float, default=0.4, help="""Final value of the
         weight decay. We use a cosine schedule for WD and using a larger decay by
         the end of training improves performance for ViTs.""")
+    parser.add_argument('--num_registers', type=int, default=0, help="""Number of register tokens""")
     parser.add_argument('--clip_grad', type=float, default=0.5, help="""Maximal parameter
         gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
         help optimization for larger ViT architectures. 0 for disabling.""")
@@ -140,11 +141,11 @@ def train_dino(args):
     cudnn.benchmark = True
 
     # ============ preparing data ... ============
-    # transform = DataAugmentationDINO(
-    #     args.global_crops_scale,
-    #     args.local_crops_scale,
-    #     args.local_crops_number,
-    # )
+    transform = DataAugmentationDINO(
+        args.global_crops_scale,
+        args.local_crops_scale,
+        args.local_crops_number,
+    )
 
     #transform = DataAugmentationDINO_grayscale(
     #    args.global_crops_scale,
@@ -152,11 +153,11 @@ def train_dino(args):
     #    args.local_crops_number,
     #)
 
-    transform = DataAugmentationDINO_reduced(
-        args.global_crops_scale,
-        args.local_crops_scale,
-        args.local_crops_number,
-    )
+    # transform = DataAugmentationDINO_reduced(
+    #     args.global_crops_scale,
+    #     args.local_crops_scale,
+    #     args.local_crops_number,
+    # )
 
     dataset = datasets.ImageFolder(
         args.data_path,
@@ -188,9 +189,10 @@ def train_dino(args):
         student = vits.__dict__[args.arch](
             patch_size=args.patch_size,
             drop_path_rate=args.drop_path_rate,  # stochastic depth
+            num_registers=args.num_registers
         )
         print(args.patch_size)
-        teacher = vits.__dict__[args.arch](patch_size=args.patch_size)
+        teacher = vits.__dict__[args.arch](patch_size=args.patch_size, num_registers=args.num_registers)
         embed_dim = student.embed_dim
         student.patch_embed.proj = torch.nn.Conv2d(
             in_channels=1,
@@ -516,9 +518,14 @@ class DataAugmentationDINO(object):
             ),
             transforms.RandomGrayscale(p=0.2),
         ])
+        # normalize = transforms.Compose([
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        # ])
+        
         normalize = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            transforms.Normalize((0.5165, 0.5165, 0.5165), (0.1208, 0.1208, 0.1208)),
         ])
 
         # first global crop
@@ -565,16 +572,22 @@ class DataAugmentationDINO_grayscale(object):
             # ),
             # transforms.RandomGrayscale(p=0.2),
         ])
+        # normalize = transforms.Compose([
+        #     transforms.ToTensor(),
+        #     transforms.Normalize((0.5291), (0.0873)),
+        # ])
+        
+        # for TS_0008
         normalize = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5175), (0.2367)),
+            transforms.Normalize((0.5165, 0.5165, 0.5165), (0.1208, 0.1208, 0.1208)),
         ])
 
         # first global crop
         self.global_transfo1 = transforms.Compose([
             transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
-            utils.GaussianBlur(1.0),
+            utils.GaussianBlur(0.3),
             normalize,
         ])
         # second global crop
@@ -582,7 +595,7 @@ class DataAugmentationDINO_grayscale(object):
             transforms.RandomResizedCrop(224, scale=global_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
             utils.GaussianBlur(0.1),
-            # utils.Solarization(0.2),
+            utils.Solarization(0.2),
             normalize,
         ])
         # transformation for the local small crops
@@ -590,7 +603,7 @@ class DataAugmentationDINO_grayscale(object):
         self.local_transfo = transforms.Compose([
             transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=Image.BICUBIC),
             flip_and_color_jitter,
-            utils.GaussianBlur(p=0.5),
+            utils.GaussianBlur(p=0.2),
             normalize,
         ])
 
@@ -619,7 +632,7 @@ class DataAugmentationDINO_reduced(object):
 
         normalize = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5307), (0.0815)),
+            transforms.Normalize((0.5084), (0.1011)),
         ])
 
         # first global crop
@@ -642,8 +655,10 @@ class DataAugmentationDINO_reduced(object):
             transforms.RandomResizedCrop(96, scale=local_crops_scale, interpolation=Image.BICUBIC),
             flip_tranforms,
             rotation_transform,
+            # utils.GaussianNoise(p=0.3), # Gaussian Noise
             normalize,
         ])
+        
 
     def __call__(self, image):
         crops = []
